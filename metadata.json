@@ -1,0 +1,9 @@
+{
+  "name": "KayBiT_Util - Camera & GPS Timestamp Utility & Customization Tools",
+  "description": "Production-grade camera & GPS timestamp utility, forensic verification, and multi-language systems demonstration platform spanning 21 programming languages across 4 architectural phases.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
