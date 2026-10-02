@@ -1,103 +1,27 @@
 import React, { useState } from 'react';
-import { Database, Play, CheckCircle2, AlertTriangle, FileText, Cpu, Radio, Sparkles, Sliders } from 'lucide-react';
+import { Database, Play, Cpu, Radio, Sliders } from 'lucide-react';
 import { PostgisQueryResult } from '../types';
+import { PHASE4_CONFIG } from '../data/phasesConfig';
 
 export const Phase4FleetSpatialOLAP: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'postgis_sql' | 'spark_scala' | 'r_fraud' | 'matlab_gnss'>('postgis_sql');
 
-  // PostGIS SQL State
+  // PostGIS SQL State from structured configuration
   const [selectedQueryType, setSelectedQueryType] = useState<'supersonic' | 'open_water' | 'partition_aggr'>('supersonic');
   const [isExecutingSql, setIsExecutingSql] = useState<boolean>(false);
-  const [sqlResult, setSqlResult] = useState<PostgisQueryResult>({
-    query: `WITH sequential_pings AS (
-    SELECT vehicle_vin, recorded_at, geom,
-           LAG(geom) OVER (PARTITION BY vehicle_vin ORDER BY recorded_at) as prev_geom,
-           EXTRACT(EPOCH FROM (recorded_at - LAG(recorded_at) OVER (PARTITION BY vehicle_vin ORDER BY recorded_at))) as dt_seconds
-    FROM fleet_telemetry_logs
-)
-SELECT vehicle_vin, recorded_at,
-       ROUND((ST_Distance(geom::geography, prev_geom::geography) / dt_seconds * 3.6)::numeric, 2) AS speed_kmh,
-       'SUPERSONIC_JUMP_VIOLATION' AS anomaly_flag
-FROM sequential_pings
-WHERE dt_seconds > 0 AND (ST_Distance(geom::geography, prev_geom::geography) / dt_seconds * 3.6) > 250.0;`,
-    executionTimeMs: 14.8,
-    columns: ['vehicle_vin', 'recorded_at', 'speed_kmh', 'anomaly_flag'],
-    rows: [
-      { vehicle_vin: '1HGCR2F83HA00918', recorded_at: '2026-09-30 08:14:05 UTC', speed_kmh: 384000.22, anomaly_flag: 'SUPERSONIC_JUMP_VIOLATION' },
-      { vehicle_vin: '3VW2K7AJ4HM29910', recorded_at: '2026-09-30 09:22:18 UTC', speed_kmh: 8900.50, anomaly_flag: 'SUPERSONIC_JUMP_VIOLATION' },
-    ],
-    anomaliesDetectedCount: 2,
-  });
+  const [sqlResult, setSqlResult] = useState<PostgisQueryResult>(PHASE4_CONFIG.postgisQueries.supersonic);
 
   const handleRunSql = () => {
     setIsExecutingSql(true);
     setTimeout(() => {
-      if (selectedQueryType === 'supersonic') {
-        setSqlResult({
-          query: `WITH sequential_pings AS (
-    SELECT vehicle_vin, recorded_at, geom,
-           LAG(geom) OVER (PARTITION BY vehicle_vin ORDER BY recorded_at) as prev_geom,
-           EXTRACT(EPOCH FROM (recorded_at - LAG(recorded_at) OVER (PARTITION BY vehicle_vin ORDER BY recorded_at))) as dt_seconds
-    FROM fleet_telemetry_logs
-)
-SELECT vehicle_vin, recorded_at,
-       ROUND((ST_Distance(geom::geography, prev_geom::geography) / dt_seconds * 3.6)::numeric, 2) AS speed_kmh,
-       'SUPERSONIC_JUMP_VIOLATION' AS anomaly_flag
-FROM sequential_pings
-WHERE dt_seconds > 0 AND (ST_Distance(geom::geography, prev_geom::geography) / dt_seconds * 3.6) > 250.0;`,
-          executionTimeMs: 12.4,
-          columns: ['vehicle_vin', 'recorded_at', 'speed_kmh', 'anomaly_flag'],
-          rows: [
-            { vehicle_vin: '1HGCR2F83HA00918', recorded_at: '2026-09-30 08:14:05 UTC', speed_kmh: 384000.22, anomaly_flag: 'SUPERSONIC_JUMP_VIOLATION' },
-            { vehicle_vin: '3VW2K7AJ4HM29910', recorded_at: '2026-09-30 09:22:18 UTC', speed_kmh: 8900.50, anomaly_flag: 'SUPERSONIC_JUMP_VIOLATION' },
-            { vehicle_vin: 'WAUZZZF27NA01882', recorded_at: '2026-09-30 11:05:42 UTC', speed_kmh: 1420.15, anomaly_flag: 'SUPERSONIC_JUMP_VIOLATION' },
-          ],
-          anomaliesDetectedCount: 3,
-        });
-      } else if (selectedQueryType === 'open_water') {
-        setSqlResult({
-          query: `SELECT t.vehicle_vin, t.recorded_at,
-       ST_AsText(t.geom) AS coordinate_wkt,
-       m.zone_name,
-       'ILLEGAL_OPEN_WATER_INTERSECTION' AS anomaly_flag
-FROM fleet_telemetry_logs t
-JOIN restricted_maritime_zones m 
-  ON ST_Contains(m.geom_boundary, t.geom)
-WHERE t.recorded_at >= NOW() - INTERVAL '24 hours';`,
-          executionTimeMs: 18.2,
-          columns: ['vehicle_vin', 'recorded_at', 'coordinate_wkt', 'zone_name', 'anomaly_flag'],
-          rows: [
-            { vehicle_vin: '2C3CDXBG8PH50192', recorded_at: '2026-09-30 07:11:00 UTC', coordinate_wkt: 'POINT(8.548 47.331)', zone_name: 'Lake Zurich Maritime Corridor', anomaly_flag: 'ILLEGAL_OPEN_WATER_INTERSECTION' },
-            { vehicle_vin: '5NMS23AC9LH04491', recorded_at: '2026-09-30 10:48:30 UTC', coordinate_wkt: 'POINT(1.312 51.109)', zone_name: 'English Channel Shipping Lane', anomaly_flag: 'ILLEGAL_OPEN_WATER_INTERSECTION' },
-          ],
-          anomaliesDetectedCount: 2,
-        });
-      } else {
-        setSqlResult({
-          query: `SELECT 
-    date_trunc('hour', recorded_at) AS time_bucket,
-    COUNT(*) AS total_points,
-    ROUND(AVG(speed_kmh), 2) AS fleet_avg_speed,
-    SUM(CASE WHEN tpm_hash_verified = false THEN 1 ELSE 0 END) AS unverified_tpm_count
-FROM fleet_telemetry_logs
-GROUP BY 1 ORDER BY 1 DESC LIMIT 4;`,
-          executionTimeMs: 8.6,
-          columns: ['time_bucket', 'total_points', 'fleet_avg_speed', 'unverified_tpm_count'],
-          rows: [
-            { time_bucket: '2026-09-30 11:00:00 UTC', total_points: 248900, fleet_avg_speed: 54.2, unverified_tpm_count: 0 },
-            { time_bucket: '2026-09-30 10:00:00 UTC', total_points: 412500, fleet_avg_speed: 61.8, unverified_tpm_count: 3 },
-            { time_bucket: '2026-09-30 09:00:00 UTC', total_points: 398200, fleet_avg_speed: 58.4, unverified_tpm_count: 1 },
-            { time_bucket: '2026-09-30 08:00:00 UTC', total_points: 310100, fleet_avg_speed: 48.9, unverified_tpm_count: 0 },
-          ],
-          anomaliesDetectedCount: 4,
-        });
-      }
+      setSqlResult(PHASE4_CONFIG.postgisQueries[selectedQueryType]);
       setIsExecutingSql(false);
-    }, 350);
+    }, 300);
   };
 
   // MATLAB GNSS Anomaly State
   const [matlabScenario, setMatlabScenario] = useState<'real_receiver' | 'software_emulator'>('software_emulator');
+  const activeMatlabDiagnostic = PHASE4_CONFIG.matlabGnssDiagnostics[matlabScenario];
 
   return (
     <div className="space-y-6">
@@ -263,19 +187,19 @@ GROUP BY 1 ORDER BY 1 DESC LIMIT 4;`,
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
                 <span className="text-slate-500 block text-[10px]">INGESTION RATE</span>
-                <span className="text-slate-100 text-base font-bold">142,000 pings/sec</span>
+                <span className="text-slate-100 text-base font-bold">{PHASE4_CONFIG.sparkStreamingMetrics.ingestionRate}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
                 <span className="text-slate-500 block text-[10px]">ACTIVE PARTITIONS</span>
-                <span className="text-cyan-400 text-base font-bold">512 Workers</span>
+                <span className="text-cyan-400 text-base font-bold">{PHASE4_CONFIG.sparkStreamingMetrics.activePartitions}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
                 <span className="text-slate-500 block text-[10px]">WATERMARK DRIFT</span>
-                <span className="text-slate-100 text-base font-bold">10 Minutes</span>
+                <span className="text-slate-100 text-base font-bold">{PHASE4_CONFIG.sparkStreamingMetrics.watermarkDrift}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
                 <span className="text-slate-500 block text-[10px]">CLUSTER TAMPER RATE</span>
-                <span className="text-emerald-400 text-base font-bold">0.003% (Low)</span>
+                <span className="text-emerald-400 text-base font-bold">{PHASE4_CONFIG.sparkStreamingMetrics.tamperRate}</span>
               </div>
             </div>
           </div>
@@ -302,15 +226,15 @@ GROUP BY 1 ORDER BY 1 DESC LIMIT 4;`,
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-slate-300">
                 <div>
                   <span className="text-slate-500 block">CHI-SQUARE CUTOFF THRESHOLD:</span>
-                  <span className="text-cyan-400 font-semibold">16.27 (p &lt; 0.001)</span>
+                  <span className="text-cyan-400 font-semibold">{PHASE4_CONFIG.rFraudModelMetrics.chiSquareThreshold}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">MAX OBSERVED MAHALANOBIS DISTANCE:</span>
-                  <span className="text-rose-400 font-semibold">84.19 (Route AST-8903)</span>
+                  <span className="text-rose-400 font-semibold">{PHASE4_CONFIG.rFraudModelMetrics.maxObservedMahalanobisDist}</span>
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 pt-2 font-sans">
-                Verdict: Route AST-8903 exhibited zero engine accelerometer vibrations despite claiming 85 km/h displacement over 40 kilometers. Statistically flagged as software-injected mileage theft.
+                {PHASE4_CONFIG.rFraudModelMetrics.verdictMessage}
               </p>
             </div>
           </div>
@@ -370,35 +294,17 @@ GROUP BY 1 ORDER BY 1 DESC LIMIT 4;`,
                 <span>CONFIDENCE: 99.4%</span>
               </div>
 
-              {matlabScenario === 'software_emulator' ? (
-                <>
-                  <p className="font-bold text-rose-300">
-                    [CRITICAL ALERT] ARTIFICIAL SOFTWARE GPS EMULATOR DETECTED!
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px]">
-                    <li>C/N0 Signal-to-Noise Variance: 0.000 dB-Hz (Unrealistically flat across all 12 channels)</li>
-                    <li>Receiver Crystal Oscillator Drift: 0.000000 ns/s (Synthetic perfect clock detected)</li>
-                    <li>Doppler Shift Deviation: Zero atmospheric scintillation observed</li>
-                  </ul>
-                  <p className="text-rose-300 text-[11px] pt-1 font-sans">
-                    Diagnosis: The telemetry feed originates from an Android Mock Location provider or desktop software emulator injecting static NMEA sentences without physical radio wave propagation physics.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold text-emerald-300">
-                    [PASSED] AUTHENTIC HARDWARE RADIO RECEPTION CONFIRMED
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px]">
-                    <li>C/N0 Signal-to-Noise Variance: 4.82 dB-Hz (Natural atmospheric fluctuation)</li>
-                    <li>Receiver Crystal Oscillator Drift: 3.12 ns/s (Normal quartz thermal drift)</li>
-                    <li>Doppler Shift Deviation: Matches theoretical GPS constellation orbital velocities</li>
-                  </ul>
-                  <p className="text-emerald-300 text-[11px] pt-1 font-sans">
-                    Diagnosis: Hardware antenna verified against physical ionospheric and tropospheric delay patterns.
-                  </p>
-                </>
-              )}
+              <p className={`font-bold ${matlabScenario === 'software_emulator' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {activeMatlabDiagnostic.headline}
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px]">
+                {activeMatlabDiagnostic.items.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+              <p className={`text-[11px] pt-1 font-sans ${matlabScenario === 'software_emulator' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {activeMatlabDiagnostic.diagnosis}
+              </p>
             </div>
           </div>
         </div>

@@ -1,39 +1,17 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Terminal, Cpu, HardDrive, Key, Play, RefreshCw, CheckCircle2, AlertTriangle, FileCode } from 'lucide-react';
-
-interface CobolRecord {
-  assetId: string;
-  lat: number;
-  lon: number;
-  expectedMinLat: number;
-  expectedMaxLat: number;
-  expectedMinLon: number;
-  expectedMaxLon: number;
-  status: 'PENDING' | 'VERIFIED' | 'BREACH';
-  timestamp: string;
-}
+import { ShieldCheck, Terminal, Cpu, HardDrive, Key, Play, RefreshCw, FileCode } from 'lucide-react';
+import { PHASE1_CONFIG, CobolRecordConfig } from '../data/phasesConfig';
+import { TpmChipSealSvg } from '../data/svgAssets';
 
 export const Phase1KernelDriver: React.FC = () => {
   const [activeModule, setActiveModule] = useState<'architecture' | 'cobol' | 'kernel_mmap' | 'rust_tpm' | 'shell_hardening'>('architecture');
 
-  // COBOL Mainframe Batch Simulator State
+  // COBOL Mainframe Batch Simulator State from structured configuration
   const [cobolRunning, setCobolRunning] = useState<boolean>(false);
-  const [cobolLogs, setCobolLogs] = useState<string[]>([
-    'JOB KAYBAUD1 INITIALIZED ON IBM SYSTEM/390 ENTERPRISE SERVER',
-    'ATTACHING DD:ASSTMST (MASTER FILE) BLOCKSIZE=27920 RECORD=120',
-    'ATTACHING DD:AUDITTRN (SPATIAL INVENTORY QUEUE) RECORD=160',
-    'STATUS: READY FOR SEQUENTIAL BATCH EXECUTION.'
-  ]);
+  const [cobolLogs, setCobolLogs] = useState<string[]>(PHASE1_CONFIG.initialCobolLogs);
   const [cobolStats, setCobolStats] = useState({ processed: 0, verified: 0, breaches: 0 });
 
-  const [records, setRecords] = useState<CobolRecord[]>([
-    { assetId: 'AST-CH-8901', lat: 47.3769, lon: 8.5417, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:02Z' },
-    { assetId: 'AST-CH-8902', lat: 47.3812, lon: 8.5390, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:04Z' },
-    { assetId: 'AST-CH-8903', lat: 48.9102, lon: 9.1204, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:06Z' }, // Breach!
-    { assetId: 'AST-CH-8904', lat: 47.3695, lon: 8.5441, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:08Z' },
-    { assetId: 'AST-CH-8905', lat: 47.3720, lon: 8.5501, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:10Z' },
-    { assetId: 'AST-CH-8906', lat: 43.1200, lon: 12.440, expectedMinLat: 47.35, expectedMaxLat: 47.40, expectedMinLon: 8.50, expectedMaxLon: 8.58, status: 'PENDING', timestamp: '2026-09-30T10:14:12Z' }, // Breach!
-  ]);
+  const [records, setRecords] = useState<CobolRecordConfig[]>(PHASE1_CONFIG.initialCobolRecords);
 
   // Execute COBOL Batch Processing
   const runCobolBatch = () => {
@@ -94,11 +72,11 @@ export const Phase1KernelDriver: React.FC = () => {
     }, 400);
   };
 
-  // Rust TPM Vault State
+  // Rust TPM Vault State from structured configuration
   const [tpmSealed, setTpmSealed] = useState<boolean>(true);
-  const [tpmFrameCount, setTpmFrameCount] = useState<number>(4209);
-  const [tpmHash, setTpmHash] = useState<string>('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-  const [tpmSig, setTpmSig] = useState<string>('3045022100811c9dc5fa7b99c10220e3b0c44298fc1c149afbf4c8');
+  const [tpmFrameCount, setTpmFrameCount] = useState<number>(PHASE1_CONFIG.initialTpmState.frameCount);
+  const [tpmHash, setTpmHash] = useState<string>(PHASE1_CONFIG.initialTpmState.hash);
+  const [tpmSig, setTpmSig] = useState<string>(PHASE1_CONFIG.initialTpmState.signature);
 
   const triggerTpmSeal = () => {
     const newSeq = tpmFrameCount + 1;
@@ -323,27 +301,27 @@ export const Phase1KernelDriver: React.FC = () => {
               In high-throughput 60 FPS video capture (3.11 MB per 1080p YUV420 frame), standard CPU memory copy routines cause severe L3 cache evictions. The KayBiT Assembly routine uses <code className="text-cyan-300">vmovntdq</code> instructions to stream pixels straight to physical DRAM, completely bypassing cache hierarchies.
             </p>
 
-            {/* Memory Struct Inspector */}
+            {/* Memory Struct Inspector from structured data */}
             <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs space-y-2">
               <div className="text-slate-500 text-[11px] pb-1 border-b border-slate-800">
-                ACTIVE RING BUFFER MMAP DESCRIPTOR: /dev/kaybit_sec0 [LOCK_PAGES: ACTIVE]
+                ACTIVE RING BUFFER MMAP DESCRIPTOR: {PHASE1_CONFIG.ring0Descriptor.devicePath} [LOCK_PAGES: {PHASE1_CONFIG.ring0Descriptor.lockPages}]
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-300">
                 <div>
                   <span className="text-slate-500 block">KERNEL MONOTONIC NS (ktime):</span>
-                  <span className="text-cyan-400">189340291948842 ns</span>
+                  <span className="text-cyan-400">{PHASE1_CONFIG.ring0Descriptor.monotonicTimestampNs}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">PIXEL DIMENSIONS:</span>
-                  <span className="text-slate-200">1920 x 1080 (YUV420 / NV21)</span>
+                  <span className="text-slate-200">{PHASE1_CONFIG.ring0Descriptor.pixelDimensions}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">AVX2 STREAM BANDWIDTH:</span>
-                  <span className="text-emerald-400">18.4 GB/s (0.41ms copy latency)</span>
+                  <span className="text-emerald-400">{PHASE1_CONFIG.ring0Descriptor.avx2Bandwidth}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">HARDWARE TSC SERIALIZED (rdtscp):</span>
-                  <span className="text-purple-400">0x00007FFAC891004B</span>
+                  <span className="text-purple-400">{PHASE1_CONFIG.ring0Descriptor.tscRegister}</span>
                 </div>
               </div>
             </div>
@@ -358,7 +336,7 @@ export const Phase1KernelDriver: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xs font-semibold text-slate-200 flex items-center gap-2">
-                  <Key className="w-4 h-4 text-purple-400" />
+                  <TpmChipSealSvg size={20} className="text-purple-400 shrink-0" />
                   Rust Forensic Background Daemon & Hardware TPM 2.0 Sealer
                 </h3>
                 <p className="text-[11px] text-slate-400">
@@ -403,19 +381,17 @@ export const Phase1KernelDriver: React.FC = () => {
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2 font-mono text-xs">
                 <span className="text-cyan-400 font-semibold block text-[11px]">Linux (Bash POSIX)</span>
                 <ul className="text-slate-400 space-y-1 text-[11px]">
-                  <li>✓ Disables Android mock locations (/sys/class/android)</li>
-                  <li>✓ Enforces CONFIG_MODULE_SIG kernel verification</li>
-                  <li>✓ Sets UART /dev/ttyS0 to 115200 raw exclusive</li>
-                  <li>✓ Ingests signed kernel module with DMA locking</li>
+                  {PHASE1_CONFIG.shellHardening.linuxBash.map((item, idx) => (
+                    <li key={idx}>✓ {item}</li>
+                  ))}
                 </ul>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2 font-mono text-xs">
                 <span className="text-blue-400 font-semibold block text-[11px]">Windows (PowerShell 7.4)</span>
                 <ul className="text-slate-400 space-y-1 text-[11px]">
-                  <li>✓ Hypervisor-Enforced Code Integrity (HVCI) checked</li>
-                  <li>✓ Hardware TPM 2.0 provisioning verified</li>
-                  <li>✓ Isolates Media Foundation virtual filter driver</li>
-                  <li>✓ Enforces non-paged pool memory allocations</li>
+                  {PHASE1_CONFIG.shellHardening.windowsPowerShell.map((item, idx) => (
+                    <li key={idx}>✓ {item}</li>
+                  ))}
                 </ul>
               </div>
             </div>

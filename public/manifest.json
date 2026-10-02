@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "KayBiT_Util - Camera & GPS Timestamp Utility",
+  "short_name": "KayBiT_Util",
+  "description": "Production-grade camera and GPS timestamp utility, forensic verification, and multi-language systems demonstration platform.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "categories": ["education", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

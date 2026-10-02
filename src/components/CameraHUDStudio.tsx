@@ -1,17 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera,
-  Video,
   Download,
-  Shield,
-  Layers,
-  Settings2,
-  RefreshCw,
-  Sun,
-  Compass,
-  Navigation,
   CheckCircle2,
-  AlertTriangle,
   Play,
   Square
 } from 'lucide-react';
@@ -20,6 +11,14 @@ import { calculateSolarPosition } from '../utils/solarCalculator';
 import { TelemetryKalmanFilter } from '../utils/kalmanFilter';
 import { hashFrameData, generateTpmSignature } from '../utils/cryptoSigner';
 import { generateGprmc, generateGpgga } from '../utils/nmeaParser';
+import {
+  DEFAULT_TELEMETRY_DATA,
+  DEFAULT_OVERLAY_CUSTOMIZATION,
+  OVERLAY_PRESET_TEMPLATES,
+  HUD_DISPLAY_FIELDS,
+  HUD_POSITION_OPTIONS,
+  DRONE_SIMULATION_CONFIG,
+} from '../data/cameraStudioConfig';
 
 export const CameraHUDStudio: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -35,54 +34,16 @@ export const CameraHUDStudio: React.FC = () => {
   const [snapshotSuccess, setSnapshotSuccess] = useState<string | null>(null);
 
   // Kalman filter instances for smoothing
-  const latKalman = useRef(new TelemetryKalmanFilter(47.3769, 0.00005, 0.0005));
-  const lonKalman = useRef(new TelemetryKalmanFilter(8.5417, 0.00005, 0.0005));
-  const altKalman = useRef(new TelemetryKalmanFilter(408.0, 0.05, 0.8));
-  const speedKalman = useRef(new TelemetryKalmanFilter(42.5, 0.1, 1.2));
+  const latKalman = useRef(new TelemetryKalmanFilter(DEFAULT_TELEMETRY_DATA.latitude, 0.00005, 0.0005));
+  const lonKalman = useRef(new TelemetryKalmanFilter(DEFAULT_TELEMETRY_DATA.longitude, 0.00005, 0.0005));
+  const altKalman = useRef(new TelemetryKalmanFilter(DEFAULT_TELEMETRY_DATA.altitude, 0.05, 0.8));
+  const speedKalman = useRef(new TelemetryKalmanFilter(DEFAULT_TELEMETRY_DATA.speedKmh, 0.1, 1.2));
 
-  // Current live telemetry state
-  const [telemetry, setTelemetry] = useState<TelemetryData>({
-    latitude: 47.376882,
-    longitude: 8.541694,
-    altitude: 408.2,
-    speedKmh: 42.4,
-    headingDeg: 84.0,
-    accuracyMeters: 1.8,
-    satellitesInView: 14,
-    hdop: 0.8,
-    vdop: 1.1,
-    timestampUtc: new Date().toISOString(),
-    unixEpochMs: Date.now(),
-    nmeaSentenceRmc: '',
-    nmeaSentenceGga: '',
-    sha256FrameHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    tpmSignatureHex: '3045022100811c9dc5fa7b99c10220e3b0c44298fc1c14',
-    geofenceStatus: 'AUTHORIZED',
-    solarElevationDeg: 42.1,
-    solarAzimuthDeg: 168.4,
-    expectedShadowRatio: 1.106,
-  });
+  // Current live telemetry state from structured defaults
+  const [telemetry, setTelemetry] = useState<TelemetryData>(DEFAULT_TELEMETRY_DATA);
 
-  // Customization configuration
-  const [customization, setCustomization] = useState<OverlayCustomization>({
-    templateId: 'forensic_police',
-    fontSize: 13,
-    fontColor: '#22d3ee', // laser cyan
-    bgOpacity: 0.75,
-    position: 'bottom-left',
-    showCoordinates: true,
-    showAltitude: true,
-    showSpeed: true,
-    showHeading: true,
-    showSha256: true,
-    showTpmSig: true,
-    showNmea: true,
-    showSatellites: true,
-    showSolarData: true,
-    showQrCode: true,
-    customWatermarkTitle: 'KAYBIT FORENSIC CHAIN-OF-CUSTODY',
-    operatorId: 'KBT-UNIT-409',
-  });
+  // Customization configuration from structured defaults
+  const [customization, setCustomization] = useState<OverlayCustomization>(DEFAULT_OVERLAY_CUSTOMIZATION);
 
   const [activeTab, setActiveTab] = useState<'presets' | 'customize' | 'telemetry'>('presets');
 
@@ -175,12 +136,21 @@ export const CameraHUDStudio: React.FC = () => {
     const interval = setInterval(() => {
       step += 1;
       const now = new Date();
-      // Moving in Zurich / flight path
-      const baseLat = 47.3769 + Math.sin(step * 0.05) * 0.003;
-      const baseLon = 8.5417 + Math.cos(step * 0.05) * 0.004;
-      const baseAlt = 405 + Math.sin(step * 0.08) * 15;
-      const rawSpeed = 45 + Math.sin(step * 0.1) * 8 + (Math.random() - 0.5) * 2;
-      const heading = (step * 2.5) % 360;
+      // Moving in flight path according to structured simulation config
+      const baseLat =
+        DRONE_SIMULATION_CONFIG.centerLat +
+        Math.sin(step * 0.05) * DRONE_SIMULATION_CONFIG.latRadius;
+      const baseLon =
+        DRONE_SIMULATION_CONFIG.centerLon +
+        Math.cos(step * 0.05) * DRONE_SIMULATION_CONFIG.lonRadius;
+      const baseAlt =
+        DRONE_SIMULATION_CONFIG.baseAltitude +
+        Math.sin(step * 0.08) * DRONE_SIMULATION_CONFIG.altitudeVariance;
+      const rawSpeed =
+        DRONE_SIMULATION_CONFIG.baseSpeedKmh +
+        Math.sin(step * 0.1) * DRONE_SIMULATION_CONFIG.speedVariance +
+        (Math.random() - 0.5) * 2;
+      const heading = (step * DRONE_SIMULATION_CONFIG.headingStepDeg) % 360;
 
       // Update Kalman filter
       const smoothLat = latKalman.current.update(baseLat).estimated;
@@ -207,7 +177,7 @@ export const CameraHUDStudio: React.FC = () => {
         solarAzimuthDeg: solar.azimuthDeg,
         expectedShadowRatio: solar.shadowLengthRatio,
       }));
-    }, 200);
+    }, DRONE_SIMULATION_CONFIG.updateIntervalMs);
 
     return () => clearInterval(interval);
   }, []);
@@ -483,127 +453,13 @@ export const CameraHUDStudio: React.FC = () => {
     };
   }, [drawHUD]);
 
-  // Preset Template Application
+  // Preset Template Application from structured configuration
   const applyPreset = (presetId: OverlayTemplateId) => {
-    if (presetId === 'forensic_police') {
+    const template = OVERLAY_PRESET_TEMPLATES.find((p) => p.id === presetId);
+    if (template) {
       setCustomization((prev) => ({
         ...prev,
-        templateId: presetId,
-        fontSize: 13,
-        fontColor: '#22d3ee',
-        bgOpacity: 0.85,
-        position: 'bottom-left',
-        showCoordinates: true,
-        showAltitude: true,
-        showSpeed: true,
-        showHeading: true,
-        showSha256: true,
-        showTpmSig: true,
-        showNmea: true,
-        showSatellites: true,
-        showSolarData: false,
-        showQrCode: true,
-        customWatermarkTitle: 'POLICE FORENSIC CHAIN-OF-CUSTODY',
-      }));
-    } else if (presetId === 'surveyor_cadastral') {
-      setCustomization((prev) => ({
-        ...prev,
-        templateId: presetId,
-        fontSize: 12,
-        fontColor: '#34d399', // Emerald
-        bgOpacity: 0.8,
-        position: 'top-left',
-        showCoordinates: true,
-        showAltitude: true,
-        showSpeed: false,
-        showHeading: true,
-        showSha256: true,
-        showTpmSig: false,
-        showNmea: true,
-        showSatellites: true,
-        showSolarData: true,
-        showQrCode: false,
-        customWatermarkTitle: 'CADASTRAL SURVEY GRADE GNSS WGS84',
-      }));
-    } else if (presetId === 'logistics_fleet') {
-      setCustomization((prev) => ({
-        ...prev,
-        templateId: presetId,
-        fontSize: 13,
-        fontColor: '#f59e0b', // Amber
-        bgOpacity: 0.75,
-        position: 'bottom-right',
-        showCoordinates: true,
-        showAltitude: false,
-        showSpeed: true,
-        showHeading: true,
-        showSha256: false,
-        showTpmSig: true,
-        showNmea: false,
-        showSatellites: true,
-        showSolarData: false,
-        showQrCode: false,
-        customWatermarkTitle: 'ENTERPRISE FLEET TELEMATICS',
-      }));
-    } else if (presetId === 'environmental_solar') {
-      setCustomization((prev) => ({
-        ...prev,
-        templateId: presetId,
-        fontSize: 13,
-        fontColor: '#fbbf24', // Sun Amber
-        bgOpacity: 0.85,
-        position: 'bottom-left',
-        showCoordinates: true,
-        showAltitude: true,
-        showSpeed: false,
-        showHeading: true,
-        showSha256: true,
-        showTpmSig: false,
-        showNmea: false,
-        showSatellites: true,
-        showSolarData: true,
-        showQrCode: true,
-        customWatermarkTitle: 'ENVIRONMENTAL SOLAR SHADOW AUDIT',
-      }));
-    } else if (presetId === 'avionics_military') {
-      setCustomization((prev) => ({
-        ...prev,
-        templateId: presetId,
-        fontSize: 13,
-        fontColor: '#38bdf8', // Sky Blue
-        bgOpacity: 0.9,
-        position: 'split-hud',
-        showCoordinates: true,
-        showAltitude: true,
-        showSpeed: true,
-        showHeading: true,
-        showSha256: true,
-        showTpmSig: true,
-        showNmea: true,
-        showSatellites: true,
-        showSolarData: false,
-        showQrCode: true,
-        customWatermarkTitle: 'AVIONICS 6-DOF TACTICAL HUD',
-      }));
-    } else if (presetId === 'minimal_tabular') {
-      setCustomization((prev) => ({
-        ...prev,
-        templateId: presetId,
-        fontSize: 12,
-        fontColor: '#f1f5f9', // Slate white
-        bgOpacity: 0.6,
-        position: 'bottom-left',
-        showCoordinates: true,
-        showAltitude: true,
-        showSpeed: true,
-        showHeading: false,
-        showSha256: false,
-        showTpmSig: false,
-        showNmea: false,
-        showSatellites: false,
-        showSolarData: false,
-        showQrCode: false,
-        customWatermarkTitle: '',
+        ...template.config,
       }));
     }
   };
@@ -848,47 +704,10 @@ export const CameraHUDStudio: React.FC = () => {
               </p>
 
               <div className="space-y-2">
-                {[
-                  {
-                    id: 'forensic_police',
-                    name: 'Forensic & Police Evidence',
-                    badge: 'TPM Sealed',
-                    desc: 'SHA-256 frame hash, officer badge ID, tamper seal & chain of custody.',
-                  },
-                  {
-                    id: 'surveyor_cadastral',
-                    name: 'Cadastral & Land Survey',
-                    badge: 'WGS84 High-Precision',
-                    desc: 'Elevation MSL, PDOP/HDOP constellation, and solar angle data.',
-                  },
-                  {
-                    id: 'logistics_fleet',
-                    name: 'Logistics Fleet Telematics',
-                    badge: 'Fleet Audit',
-                    desc: 'Speed in km/h, vehicle VIN, geofence status, and heading compass.',
-                  },
-                  {
-                    id: 'environmental_solar',
-                    name: 'Environmental & Solar Audit',
-                    badge: 'Astronomical PSA',
-                    desc: 'Calculates real-time solar elevation, azimuth & expected shadow ratios.',
-                  },
-                  {
-                    id: 'avionics_military',
-                    name: 'Avionics Tactical HUD',
-                    badge: '6-DOF Kalman',
-                    desc: 'Artificial horizon, pitch ladders, and velocity vector overlays.',
-                  },
-                  {
-                    id: 'minimal_tabular',
-                    name: 'Minimal Tabular Monospace',
-                    badge: 'Clean Data',
-                    desc: 'Compact, non-intrusive coordinates and time readout.',
-                  },
-                ].map((preset) => (
+                {OVERLAY_PRESET_TEMPLATES.map((preset) => (
                   <button
                     key={preset.id}
-                    onClick={() => applyPreset(preset.id as OverlayTemplateId)}
+                    onClick={() => applyPreset(preset.id)}
                     className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
                       customization.templateId === preset.id
                         ? 'bg-cyan-950/40 border-cyan-500/60 shadow-md shadow-cyan-950/40'
@@ -943,11 +762,11 @@ export const CameraHUDStudio: React.FC = () => {
                   onChange={(e) => setCustomization((p) => ({ ...p, position: e.target.value as any }))}
                   className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none font-mono"
                 >
-                  <option value="bottom-left">Bottom-Left Corner</option>
-                  <option value="bottom-right">Bottom-Right Corner</option>
-                  <option value="top-left">Top-Left Corner</option>
-                  <option value="top-right">Top-Right Corner</option>
-                  <option value="split-hud">Split Tactical Horizon</option>
+                  {HUD_POSITION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -997,22 +816,11 @@ export const CameraHUDStudio: React.FC = () => {
               <div>
                 <span className="text-[11px] text-slate-400 font-medium block mb-2">Display Fields</span>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  {[
-                    { key: 'showCoordinates', label: 'Lat / Lon' },
-                    { key: 'showAltitude', label: 'Altitude MSL' },
-                    { key: 'showSpeed', label: 'Speed (km/h)' },
-                    { key: 'showHeading', label: 'Heading Compass' },
-                    { key: 'showSha256', label: 'SHA-256 Hash' },
-                    { key: 'showTpmSig', label: 'TPM 2.0 Seal' },
-                    { key: 'showNmea', label: 'NMEA Sentence' },
-                    { key: 'showSatellites', label: 'Satellites / HDOP' },
-                    { key: 'showSolarData', label: 'Solar Shadow' },
-                    { key: 'showQrCode', label: 'Verifiable QR Seal' },
-                  ].map((field) => (
+                  {HUD_DISPLAY_FIELDS.map((field) => (
                     <label key={field.key} className="flex items-center gap-2 text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={(customization as any)[field.key]}
+                        checked={Boolean(customization[field.key])}
                         onChange={(e) =>
                           setCustomization((p) => ({ ...p, [field.key]: e.target.checked }))
                         }

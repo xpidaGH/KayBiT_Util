@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="108" fill="#020617"/>
+  <rect x="24" y="24" width="464" height="464" rx="90" fill="none" stroke="#1e293b" stroke-width="4"/>
+  <!-- Target Reticle Outer Ring -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#0891b2" stroke-width="6" stroke-dasharray="16 12"/>
+  <!-- Inner Precision Ring -->
+  <circle cx="256" cy="256" r="100" fill="#042f2e" fill-opacity="0.4" stroke="#22d3ee" stroke-width="8"/>
+  <!-- Crosshairs -->
+  <line x1="256" y1="40" x2="256" y2="130" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="382" x2="256" y2="472" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+  <line x1="40" y1="256" x2="130" y2="256" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+  <line x1="382" y1="256" x2="472" y2="256" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+  <!-- Center Bullseye -->
+  <circle cx="256" cy="256" r="28" fill="#22d3ee"/>
+  <circle cx="256" cy="256" r="12" fill="#020617"/>
+  <!-- Tech Branding Accent -->
+  <text x="256" y="325" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="28" font-weight="900" letter-spacing="4">KAYBIT</text>
+  <text x="256" y="352" text-anchor="middle" fill="#94a3b8" font-family="monospace" font-size="16" letter-spacing="2">UTIL·GPS·HUD</text>
+</svg>

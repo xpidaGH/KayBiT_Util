@@ -7,23 +7,19 @@ import { Phase3SpatialAIPipeline } from './components/Phase3SpatialAIPipeline';
 import { Phase4FleetSpatialOLAP } from './components/Phase4FleetSpatialOLAP';
 import { CodeExplorerView } from './components/CodeExplorerView';
 import { UserGuideModal } from './components/UserGuideModal';
+import { InstallModal } from './components/InstallModal';
+import { SystemHealthIndicator } from './components/SystemHealthIndicator';
+import { APP_METRICS_CONFIG } from './data/phasesConfig';
 import {
   BookOpen,
-  Camera,
-  ShieldCheck,
-  Cpu,
-  Cloud,
-  Database,
   Code2,
-  Terminal,
-  Activity,
-  Layers,
-  ArrowRight
+  Download
 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'camera' | 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'explorer'>('camera');
   const [isUserGuideOpen, setIsUserGuideOpen] = useState<boolean>(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
@@ -32,6 +28,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onOpenUserGuide={() => setIsUserGuideOpen(true)}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -56,11 +53,19 @@ export default function App() {
             {/* Quick Action Pill Buttons */}
             <div className="flex flex-wrap md:flex-col lg:flex-row items-center gap-2.5 shrink-0">
               <button
+                onClick={() => setIsInstallModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-emerald-950/60 cursor-pointer whitespace-nowrap"
+              >
+                <Download className="w-4 h-4 text-slate-950" />
+                <span>Install Native App</span>
+              </button>
+
+              <button
                 onClick={() => setIsUserGuideOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs transition-all shadow-lg shadow-cyan-950 cursor-pointer whitespace-nowrap"
               >
                 <BookOpen className="w-4 h-4 text-slate-950" />
-                <span>User Guide (21 Languages)</span>
+                <span>User Guide (22 Langs + TTS)</span>
               </button>
 
               <button
@@ -73,25 +78,21 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick Metrics Bar */}
+          {/* Quick Metrics Bar from structured configuration */}
           <div className="mt-5 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono text-slate-400">
-            <div>
-              <span className="text-[10px] text-slate-500 block font-sans">ARCHITECTURE</span>
-              <span className="text-slate-200 font-semibold">4 Distinct Phases</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 block font-sans">SUPPORTED LANGUAGES</span>
-              <span className="text-cyan-400 font-semibold">21 Languages Active</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 block font-sans">OVERLAY ALLOCATION</span>
-              <span className="text-emerald-400 font-semibold">&lt; 3.0 ms / Frame</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 block font-sans">ROOT OF TRUST</span>
-              <span className="text-purple-400 font-semibold">Hardware TPM 2.0 / HSM</span>
-            </div>
+            {APP_METRICS_CONFIG.map((metric, idx) => (
+              <div key={idx}>
+                <span className="text-[10px] text-slate-500 block font-sans">{metric.label}</span>
+                <span className={`${metric.color} font-semibold`}>{metric.value}</span>
+              </div>
+            ))}
           </div>
+
+          {/* System Health Status Indicator with live heartbeat */}
+          <SystemHealthIndicator
+            activePhaseId={activeTab}
+            onSelectPhase={(phaseId) => setActiveTab(phaseId)}
+          />
         </section>
 
         {/* Tab 1: Camera & HUD Customization Studio */}
@@ -124,10 +125,17 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <button
+              onClick={() => setIsInstallModalOpen(true)}
+              className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+            >
+              Direct Download / Native Install
+            </button>
+            <span>·</span>
+            <button
               onClick={() => setIsUserGuideOpen(true)}
               className="hover:text-cyan-400 transition-colors cursor-pointer"
             >
-              Multi-Language User Guide
+              Multi-Language User Guide (TTS)
             </button>
             <span>·</span>
             <span>ISO C17 · C++20 · Rust 2024 · Go · Kotlin · Swift · Python · PostGIS · COBOL</span>
@@ -135,10 +143,16 @@ export default function App() {
         </div>
       </footer>
 
-      {/* User Guide Modal */}
+      {/* User Guide Modal with Native Speech Synthesis TTS */}
       <UserGuideModal
         isOpen={isUserGuideOpen}
         onClose={() => setIsUserGuideOpen(false)}
+      />
+
+      {/* Cross-Platform Native Install Modal */}
+      <InstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
       />
     </div>
   );

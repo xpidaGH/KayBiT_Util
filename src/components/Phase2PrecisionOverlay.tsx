@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Cpu, Activity, Play, Sliders, Smartphone, CheckCircle2, Layers } from 'lucide-react';
+import { Cpu, Activity, Sliders, Smartphone } from 'lucide-react';
 import { TelemetryKalmanFilter } from '../utils/kalmanFilter';
+import { PHASE2_CONFIG } from '../data/phasesConfig';
+import { ArtificialHorizonSvg, ReticleCrosshairSvg } from '../data/svgAssets';
 
 export const Phase2PrecisionOverlay: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kalman_playground' | 'vulkan_benchmark' | 'mobile_pipeline'>('kalman_playground');
 
-  // Kalman interactive parameters
-  const [processNoiseQ, setProcessNoiseQ] = useState<number>(0.05);
-  const [measurementNoiseR, setMeasurementNoiseR] = useState<number>(0.65);
+  // Kalman interactive parameters from structured config
+  const [processNoiseQ, setProcessNoiseQ] = useState<number>(PHASE2_CONFIG.defaultKalmanParams.processNoiseQ);
+  const [measurementNoiseR, setMeasurementNoiseR] = useState<number>(PHASE2_CONFIG.defaultKalmanParams.measurementNoiseR);
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
 
   // Live filter state
@@ -16,7 +18,13 @@ export const Phase2PrecisionOverlay: React.FC = () => {
   const [rawPings, setRawPings] = useState<number[]>([]);
   const [filteredPings, setFilteredPings] = useState<number[]>([]);
 
-  const filterRef = useRef(new TelemetryKalmanFilter(50, 0.05, 0.65));
+  const filterRef = useRef(
+    new TelemetryKalmanFilter(
+      PHASE2_CONFIG.defaultKalmanParams.initialPosition,
+      PHASE2_CONFIG.defaultKalmanParams.processNoiseQ,
+      PHASE2_CONFIG.defaultKalmanParams.measurementNoiseR
+    )
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Update filter parameters when user adjusts sliders
@@ -267,67 +275,43 @@ export const Phase2PrecisionOverlay: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs">
                 <span className="text-slate-500 block text-[10px]">GPU FRAME TIME BUDGET</span>
-                <span className="text-slate-200 text-lg font-bold">16.67 ms (60 FPS)</span>
+                <span className="text-slate-200 text-lg font-bold">{PHASE2_CONFIG.vulkanBenchmarkStats.gpuFrameBudgetMs}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs">
                 <span className="text-slate-500 block text-[10px]">MAX ALLOCATION LIMIT</span>
-                <span className="text-amber-400 text-lg font-bold">&lt; 3.00 ms</span>
+                <span className="text-amber-400 text-lg font-bold">{PHASE2_CONFIG.vulkanBenchmarkStats.maxAllocationLimitMs}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs">
                 <span className="text-slate-500 block text-[10px]">OBSERVED VULKAN PASS</span>
-                <span className="text-emerald-400 text-lg font-bold">1.42 ms (Sub-3ms PASS)</span>
+                <span className="text-emerald-400 text-lg font-bold">{PHASE2_CONFIG.vulkanBenchmarkStats.observedVulkanPassMs}</span>
               </div>
             </div>
 
-            {/* GLSL Shader Code Snippet Preview */}
+            {/* GLSL Shader Code Snippet Preview from structured config */}
             <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs space-y-1">
               <span className="text-cyan-400 text-[11px] block">fragment_telemetry_burn.frag (Vulkan SPIR-V)</span>
               <pre className="text-slate-300 text-[11px] overflow-x-auto leading-relaxed">
-{`#version 450 core
-layout(location = 0) in vec2 v_TexCoord;
-layout(location = 0) out vec4 out_Color;
-layout(binding = 0) uniform sampler2D u_CameraFrame;
-layout(binding = 1) uniform sampler2D u_GlyphAtlas;
-
-void main() {
-    vec4 cameraPixel = texture(u_CameraFrame, v_TexCoord);
-    vec4 hudGlyph = texture(u_GlyphAtlas, v_TexCoord);
-    // Alpha composite telemetry directly in swapchain fragment shader
-    out_Color = mix(cameraPixel, hudGlyph, hudGlyph.a);
-}`}
+{PHASE2_CONFIG.glslFragmentShader}
               </pre>
             </div>
           </div>
         </div>
       )}
 
-      {/* SUB-VIEW 3: Mobile Pipeline Architecture */}
+      {/* SUB-VIEW 3: Mobile Pipeline Architecture from structured config */}
       {activeTab === 'mobile_pipeline' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-cyan-400 font-semibold block">ANDROID SUBSYSTEM</span>
-              <h4 className="text-sm font-semibold text-slate-200">Jetpack CameraX (Kotlin)</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Attaches an ImageAnalysis analyzer to the hardware camera session. Uses Kotlin Coroutine flows with non-blocking backpressure strategies (DROP_OLDEST) to prevent memory allocation spikes.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-purple-400 font-semibold block">SENSOR ENGINE</span>
-              <h4 className="text-sm font-semibold text-slate-200">Direct Off-Heap Buffers (Java)</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Collects 100 Hz accelerometer and gyroscope vectors into off-heap direct ByteBuffers (<code className="text-purple-300">ByteBuffer.allocateDirect</code>) eliminating JNI marshal costs.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-emerald-400 font-semibold block">CROSS-PLATFORM SHELL</span>
-              <h4 className="text-sm font-semibold text-slate-200">Flutter UI & Offline Cache (Dart)</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Subscribes to telemetry streams via Flutter EventChannels. Coordinates and signatures are persisted locally into a zero-allocation reactive database (Isar) to survive loss of connectivity.
-              </p>
-            </div>
+            {PHASE2_CONFIG.mobilePipelineModules.map((module, idx) => (
+              <div key={idx} className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-cyan-400 font-semibold block">{module.subsystem}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{module.tech}</span>
+                </div>
+                <h4 className="text-sm font-semibold text-slate-200">{module.title}</h4>
+                <p className="text-xs text-slate-400 leading-normal">{module.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}

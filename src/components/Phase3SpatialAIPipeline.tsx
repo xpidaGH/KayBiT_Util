@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { Cloud, Sun, Eye, ShieldAlert, CheckCircle2, Server, Play, Compass, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Cloud, Sun, Eye, ShieldAlert, CheckCircle2, Server, ArrowRight } from 'lucide-react';
 import { calculateSolarPosition, SolarPosition } from '../utils/solarCalculator';
+import { PHASE3_CONFIG } from '../data/phasesConfig';
+import { SpeedLimitSignSvg, CompassRoseSvg } from '../data/svgAssets';
 
 export const Phase3SpatialAIPipeline: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'solar_investigator' | 'ocr_verification' | 'cloud_architecture'>('solar_investigator');
 
-  // Solar Shadow Test Parameters
-  const [testLat, setTestLat] = useState<number>(47.3769); // Zurich
-  const [testLon, setTestLon] = useState<number>(8.5417);
-  const [testDateStr, setTestDateStr] = useState<string>('2026-06-21T11:45:00');
-  const [observedShadowAngle, setObservedShadowAngle] = useState<number>(185.0); // Degrees
+  const defaultScenario = PHASE3_CONFIG.solarScenarios[0];
+  // Solar Shadow Test Parameters from structured scenarios
+  const [testLat, setTestLat] = useState<number>(defaultScenario.lat);
+  const [testLon, setTestLon] = useState<number>(defaultScenario.lon);
+  const [testDateStr, setTestDateStr] = useState<string>(defaultScenario.dateStr);
+  const [observedShadowAngle, setObservedShadowAngle] = useState<number>(185.0);
 
   // Calculate astronomical solar position
   const testDate = new Date(testDateStr);
@@ -21,38 +24,24 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
   if (discrepancy > 180) discrepancy = 360 - discrepancy;
   const isFraudulent = discrepancy > 15.0;
 
-  // Preset scenarios
-  const applyScenario = (type: 'authentic_noon' | 'authentic_morning' | 'spoofed_timestamp' | 'equator_solstice') => {
-    if (type === 'authentic_noon') {
-      setTestLat(47.3769);
-      setTestLon(8.5417);
-      setTestDateStr('2026-06-21T11:45:00');
-      // Near solar noon: shadow points almost due north (~0 / 360 or 180 depending on hemisphere)
-      const s = calculateSolarPosition(47.3769, 8.5417, new Date('2026-06-21T11:45:00'));
-      setObservedShadowAngle(s.shadowDirectionDeg);
-    } else if (type === 'authentic_morning') {
-      setTestLat(51.5074);
-      setTestLon(-0.1278);
-      setTestDateStr('2026-05-15T07:30:00');
-      const s = calculateSolarPosition(51.5074, -0.1278, new Date('2026-05-15T07:30:00'));
-      setObservedShadowAngle(s.shadowDirectionDeg);
-    } else if (type === 'spoofed_timestamp') {
-      // Forged timestamp: video recorded at sunset (shadow at 85 deg), but claiming noon timestamp!
-      setTestLat(47.3769);
-      setTestLon(8.5417);
-      setTestDateStr('2026-06-21T12:00:00');
-      setObservedShadowAngle(65.0); // Way off!
-    } else if (type === 'equator_solstice') {
-      setTestLat(0.0);
-      setTestLon(32.58);
-      setTestDateStr('2026-03-20T12:00:00');
-      const s = calculateSolarPosition(0.0, 32.58, new Date('2026-03-20T12:00:00'));
+  // Preset scenarios from structured data
+  const applyScenario = (scenarioId: string) => {
+    const sc = PHASE3_CONFIG.solarScenarios.find((s) => s.id === scenarioId);
+    if (!sc) return;
+    setTestLat(sc.lat);
+    setTestLon(sc.lon);
+    setTestDateStr(sc.dateStr);
+    if (sc.isSpoofed) {
+      setObservedShadowAngle(65.0); // Way off from theoretical noon
+    } else {
+      const s = calculateSolarPosition(sc.lat, sc.lon, new Date(sc.dateStr));
       setObservedShadowAngle(s.shadowDirectionDeg);
     }
   };
 
-  // OCR Speed Limit Sign Simulator State
+  // OCR Speed Limit Sign Simulator State from structured scenarios
   const [selectedOcrSample, setSelectedOcrSample] = useState<'match' | 'speeding_breach'>('speeding_breach');
+  const activeOcrConfig = PHASE3_CONFIG.ocrScenarios[selectedOcrSample];
 
   return (
     <div className="space-y-6">
@@ -98,33 +87,22 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
       {/* SUB-VIEW 1: Astronomical Solar Shadow Investigator */}
       {activeTab === 'solar_investigator' && (
         <div className="space-y-6">
-          {/* Quick Scenario Preset Buttons */}
+          {/* Quick Scenario Preset Buttons from structured data */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400">Forensic Scenarios:</span>
-            <button
-              onClick={() => applyScenario('authentic_noon')}
-              className="px-3 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-300 hover:border-cyan-500 hover:text-cyan-300 transition-colors cursor-pointer"
-            >
-              Authentic Solar Noon (Zurich)
-            </button>
-            <button
-              onClick={() => applyScenario('authentic_morning')}
-              className="px-3 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-300 hover:border-cyan-500 hover:text-cyan-300 transition-colors cursor-pointer"
-            >
-              Authentic Morning (London)
-            </button>
-            <button
-              onClick={() => applyScenario('spoofed_timestamp')}
-              className="px-3 py-1 text-xs rounded bg-rose-950/60 border border-rose-800/60 text-rose-300 hover:bg-rose-900/60 transition-colors cursor-pointer font-semibold"
-            >
-              🚨 Temporal Fraud (Spoofed Timestamp)
-            </button>
-            <button
-              onClick={() => applyScenario('equator_solstice')}
-              className="px-3 py-1 text-xs rounded bg-slate-900 border border-slate-800 text-slate-300 hover:border-cyan-500 hover:text-cyan-300 transition-colors cursor-pointer"
-            >
-              Equator Equinox (Kampala)
-            </button>
+            {PHASE3_CONFIG.solarScenarios.map((scenario) => (
+              <button
+                key={scenario.id}
+                onClick={() => applyScenario(scenario.id)}
+                className={`px-3 py-1 text-xs rounded border transition-colors cursor-pointer ${
+                  scenario.isSpoofed
+                    ? 'bg-rose-950/60 border-rose-800/60 text-rose-300 hover:bg-rose-900/60 font-semibold'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-cyan-500 hover:text-cyan-300'
+                }`}
+              >
+                {scenario.label}
+              </button>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -271,53 +249,30 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
                 </p>
               </div>
 
-              {/* Compass Direction Visualizer */}
+              {/* Compass Direction Visualizer using structured SVG assets */}
               <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-around">
-                <div className="text-center">
-                  <span className="text-[10px] font-mono text-slate-400 block mb-1">SUN POSITION</span>
-                  <div className="relative w-16 h-16 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center">
-                    <Sun className="w-5 h-5 text-amber-400" />
-                    <div
-                      className="absolute w-1 h-7 bg-amber-400 origin-bottom bottom-8 rounded"
-                      style={{ transform: `rotate(${solarData.azimuthDeg}deg)` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-mono text-amber-400 mt-1 block">
-                    {solarData.azimuthDeg}°
-                  </span>
-                </div>
+                <CompassRoseSvg
+                  azimuthDeg={solarData.azimuthDeg}
+                  label="SUN AZIMUTH"
+                  size={64}
+                  needleColor="#FBBF24"
+                />
 
-                <ArrowRight className="w-5 h-5 text-slate-600" />
+                <ArrowRight className="w-5 h-5 text-slate-600 shrink-0" />
 
-                <div className="text-center">
-                  <span className="text-[10px] font-mono text-slate-400 block mb-1">EXPECTED SHADOW</span>
-                  <div className="relative w-16 h-16 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center">
-                    <div
-                      className="absolute w-1.5 h-7 bg-cyan-400 origin-bottom bottom-8 rounded"
-                      style={{ transform: `rotate(${expectedShadowAngle}deg)` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-mono text-cyan-400 mt-1 block">
-                    {expectedShadowAngle}°
-                  </span>
-                </div>
+                <CompassRoseSvg
+                  azimuthDeg={expectedShadowAngle}
+                  label="EXPECTED SHADOW"
+                  size={64}
+                  needleColor="#22D3EE"
+                />
 
-                <div className="text-center">
-                  <span className="text-[10px] font-mono text-slate-400 block mb-1">OBSERVED IN VIDEO</span>
-                  <div className="relative w-16 h-16 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center">
-                    <div
-                      className={`absolute w-1.5 h-7 ${isFraudulent ? 'bg-rose-500' : 'bg-emerald-400'} origin-bottom bottom-8 rounded`}
-                      style={{ transform: `rotate(${observedShadowAngle}deg)` }}
-                    />
-                  </div>
-                  <span
-                    className={`text-[11px] font-mono mt-1 block ${
-                      isFraudulent ? 'text-rose-400' : 'text-emerald-400'
-                    }`}
-                  >
-                    {observedShadowAngle.toFixed(1)}°
-                  </span>
-                </div>
+                <CompassRoseSvg
+                  azimuthDeg={observedShadowAngle}
+                  label="OBSERVED VIDEO"
+                  size={64}
+                  needleColor={isFraudulent ? '#F43F5E' : '#10B981'}
+                />
               </div>
 
             </div>
@@ -338,43 +293,34 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
                 <span className="text-cyan-400 font-mono text-[11px]">PyTorch / Tesseract CV</span>
               </div>
 
-              {/* Simulated Frame */}
+              {/* Simulated Frame with structured SVG Speed Sign */}
               <div className="relative rounded-lg overflow-hidden border border-slate-800 aspect-video bg-gradient-to-b from-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-center">
-                {/* Physical Road Sign Graphic */}
-                <div className="relative p-3 rounded-full border-4 border-rose-600 bg-white text-slate-950 w-24 h-24 flex flex-col items-center justify-center shadow-2xl">
-                  <span className="text-[10px] font-bold tracking-tight text-slate-600">LIMIT</span>
-                  <span className="text-3xl font-extrabold font-mono leading-none">50</span>
-                </div>
-                <div className="w-1.5 h-12 bg-slate-700 -mt-1" />
+                <SpeedLimitSignSvg limit={activeOcrConfig.postedLimitKmh} size={88} className="shadow-2xl" />
+                <div className="w-1.5 h-10 bg-slate-700 -mt-1" />
 
                 {/* Bounding Box Overlay */}
-                <div className="absolute border-2 border-emerald-400 rounded px-2 py-0.5 text-[10px] font-mono text-emerald-300 bg-emerald-950/80 top-12 left-16">
-                  DETECTED: SPEED_SIGN (50 km/h) [CONFIDENCE: 98.4%]
+                <div className="absolute border-2 border-emerald-400 rounded px-2 py-0.5 text-[10px] font-mono text-emerald-300 bg-emerald-950/80 top-10 left-12">
+                  DETECTED: SPEED_SIGN ({activeOcrConfig.postedLimitKmh} km/h) [CONFIDENCE: {activeOcrConfig.confidencePercent}%]
                 </div>
               </div>
 
-              {/* Selector */}
+              {/* Selector using structured scenarios */}
               <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedOcrSample('match')}
-                  className={`flex-1 py-1.5 text-xs rounded border transition-colors cursor-pointer ${
-                    selectedOcrSample === 'match'
-                      ? 'bg-cyan-950 text-cyan-300 border-cyan-700'
-                      : 'bg-slate-900 text-slate-400 border-slate-800'
-                  }`}
-                >
-                  Scenario A: Legal Speed (45 km/h)
-                </button>
-                <button
-                  onClick={() => setSelectedOcrSample('speeding_breach')}
-                  className={`flex-1 py-1.5 text-xs rounded border transition-colors cursor-pointer ${
-                    selectedOcrSample === 'speeding_breach'
-                      ? 'bg-rose-950 text-rose-300 border-rose-700'
-                      : 'bg-slate-900 text-slate-400 border-slate-800'
-                  }`}
-                >
-                  Scenario B: Speed Violation (112 km/h)
-                </button>
+                {Object.values(PHASE3_CONFIG.ocrScenarios).map((sc) => (
+                  <button
+                    key={sc.id}
+                    onClick={() => setSelectedOcrSample(sc.id)}
+                    className={`flex-1 py-1.5 text-xs rounded border transition-colors cursor-pointer ${
+                      selectedOcrSample === sc.id
+                        ? sc.id === 'speeding_breach'
+                          ? 'bg-rose-950 text-rose-300 border-rose-700'
+                          : 'bg-cyan-950 text-cyan-300 border-cyan-700'
+                        : 'bg-slate-900 text-slate-400 border-slate-800'
+                    }`}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -387,18 +333,19 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
               <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">OCR Readout from Physical Sign:</span>
-                  <span className="text-slate-100 font-bold">50.0 km/h</span>
+                  <span className="text-slate-100 font-bold">{activeOcrConfig.postedLimitKmh.toFixed(1)} km/h</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Vehicle GPS Telemetry Velocity:</span>
-                  <span className={selectedOcrSample === 'match' ? 'text-emerald-400' : 'text-rose-400 font-bold'}>
-                    {selectedOcrSample === 'match' ? '45.2 km/h (In-bounds)' : '112.4 km/h (Excessive)'}
+                  <span className={selectedOcrSample === 'match' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                    {activeOcrConfig.telemetrySpeedKmh.toFixed(1)} km/h {selectedOcrSample === 'match' ? '(In-bounds)' : '(Excessive)'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Speed Differential:</span>
                   <span className={selectedOcrSample === 'match' ? 'text-emerald-400' : 'text-rose-400'}>
-                    {selectedOcrSample === 'match' ? '-4.8 km/h' : '+62.4 km/h VIOLATION'}
+                    {(activeOcrConfig.telemetrySpeedKmh - activeOcrConfig.postedLimitKmh > 0 ? '+' : '')}
+                    {(activeOcrConfig.telemetrySpeedKmh - activeOcrConfig.postedLimitKmh).toFixed(1)} km/h {selectedOcrSample === 'speeding_breach' ? 'VIOLATION' : ''}
                   </span>
                 </div>
               </div>
@@ -410,9 +357,7 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
                     : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
                 }`}
               >
-                {selectedOcrSample === 'match'
-                  ? '✓ Verified: Driver was traveling in accordance with physical posted road signs captured in the video stream.'
-                  : '⚠ Speed Violation / Telemetry Inconsistency: Vehicle GPS speed (112 km/h) exceeds the visual speed limit sign (50 km/h) by +62.4 km/h.'}
+                {activeOcrConfig.verdictDescription}
               </div>
             </div>
 
@@ -420,41 +365,17 @@ export const Phase3SpatialAIPipeline: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-VIEW 3: Distributed Cloud Architecture */}
+      {/* SUB-VIEW 3: Distributed Cloud Architecture from structured config */}
       {activeTab === 'cloud_architecture' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-cyan-400 font-semibold block">GATEWAY & INGRESS</span>
-              <h4 className="text-sm font-semibold text-slate-200">TypeScript / Node.js</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Handles 50,000+ persistent WebSockets, parses 512-byte metadata contracts, and pushes chunks into Redis pub/sub streams.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-rose-400 font-semibold block">MEDIA QUEUES</span>
-              <h4 className="text-sm font-semibold text-slate-200">Ruby (Sidekiq)</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Dequeues chunks, calculates binary SHA-256 match, and extracts embedded QuickTime / MP4 EXIF GPS tracks via ExifTool.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-purple-400 font-semibold block">TRANSCODING FLEET</span>
-              <h4 className="text-sm font-semibold text-slate-200">PHP 8.3 CLI Workers</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Orchestrates asynchronous FFmpeg child processes to generate H.264 watermarked stream variants and keyframe extractions.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
-              <span className="text-[10px] font-mono text-emerald-400 font-semibold block">AI FORENSIC BRAIN</span>
-              <h4 className="text-sm font-semibold text-slate-200">Python FastAPI & PyTorch</h4>
-              <p className="text-xs text-slate-400 leading-normal">
-                Runs astronomical PSA solar math, checks physical shadow angles, and executes OCR models on road signs.
-              </p>
-            </div>
+            {PHASE3_CONFIG.cloudWorkerFleet.map((w, idx) => (
+              <div key={idx} className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-2">
+                <span className="text-[10px] font-mono text-cyan-400 font-semibold block">{w.badge}</span>
+                <h4 className="text-sm font-semibold text-slate-200">{w.name}</h4>
+                <p className="text-xs text-slate-400 leading-normal">{w.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
